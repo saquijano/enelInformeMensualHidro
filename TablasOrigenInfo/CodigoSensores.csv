@@ -1,0 +1,14 @@
+﻿Variable;IdSensor
+Nivel;0230
+Precipitación;0240
+Cuadal;0601
+Voltaje;9000
+Humedad;0027
+Temperatura;0068
+Radiación Solar;0239
+Evaporación;0260
+Brillo Solar;0261
+Nivel Tanque evaporimetro;0609
+Precipitación horaria;0241
+Velocidad Viento;0103
+Dirección Viento;0104
