@@ -80,8 +80,8 @@ def textoSQL(idSensor, fechaIni, fechaFin):
 # funcion para conectarse con servidor y sacar datos con la consulta de la funcion "textoSQL"
 def sacarDatos(idSensor, fechaIni, fechaFin):
     # Carga de bases de datos desde SQL - Version actualizada (usuario y contraseña bien)
-    conexion = pyodbc.connect('DRIVER={ODBC Driver 17 for SQL Server}; SERVER=aplicaciones.canalclima.com,1845; DATABASE=ENEL; UID=santiago.quijano; PWD=contra2026*2')
-    # conexion = pyodbc.connect('DRIVER={SQL Server}; SERVER=dbservcclima.cloudapp.net,1845; DATABASE=CCLIMATE; UID=santiago.quijano; PWD=contra2025*')
+    conexion = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server}; SERVER=aplicaciones.canalclima.com,1845; DATABASE=ENEL; UID=santiago.quijano; PWD=contra2026*2; TrustServerCertificate=yes;')
+     # conexion = pyodbc.connect('DRIVER={SQL Server}; SERVER=dbservcclima.cloudapp.net,1845; DATABASE=CCLIMATE; UID=santiago.quijano; PWD=contra2025*')
     # Creacion de cursor
     cursor = conexion.cursor()
     # Ejecuta sentencias SQL en el cursor y guardo consulta de Base de datos enel
@@ -383,7 +383,7 @@ for i in estacionQ_ID:
         dfTemp=pd.DataFrame(Temp, index=[IdEstacion])
     else:
         temporal = pd.DataFrame(Temp, index=[IdEstacion])
-        dfTemp = dfTemp._append(temporal)
+        dfTemp = pd.concat([dfTemp, temporal], ignore_index=True)
 
 #### limites limite
 TQLimExtremo=pd.DataFrame(index=estacionQ_ID,columns=["TExtremoICSup"])
