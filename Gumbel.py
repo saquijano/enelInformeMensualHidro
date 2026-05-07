@@ -469,7 +469,7 @@ for i in estacionQ_ID:
     n = len(y_vals)
     posiciones = [(j - 0.44) / (n + 0.12) for j in range(1, n + 1)]  # Gringorten
     dfTemp = pd.DataFrame(posiciones)
-
+    ax.scatter(TMedidoEstaciones[i], QMedidoEstaciones[i], label="Q medidos", color="red")
     ax.scatter(dfTemp.iloc[:,0], y_vals, label=complementoNombre, color="black")
     ax.semilogx()
     ax.set_xlabel("$T_r (años)$", fontsize = 12)
