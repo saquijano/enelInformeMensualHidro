@@ -80,7 +80,7 @@ def textoSQL(idSensor, fechaIni, fechaFin):
 # funcion para conectarse con servidor y sacar datos con la consulta de la funcion "textoSQL"
 def sacarDatos(idSensor, fechaIni, fechaFin):
     # Carga de bases de datos desde SQL - Version actualizada (usuario y contraseña bien)
-    conexion = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server}; SERVER=aplicaciones.canalclima.com,1845; DATABASE=ENEL; UID=santiago.quijano; PWD=contra2026*2; TrustServerCertificate=yes;')
+    conexion = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server}; SERVER=aplicaciones.canalclima.com,1845; DATABASE=ENEL; UID=santiago.quijano; PWD=contra2026*3; TrustServerCertificate=yes;')
      # conexion = pyodbc.connect('DRIVER={SQL Server}; SERVER=dbservcclima.cloudapp.net,1845; DATABASE=CCLIMATE; UID=santiago.quijano; PWD=contra2025*')
     # Creacion de cursor
     cursor = conexion.cursor()
@@ -463,8 +463,14 @@ for i in estacionQ_ID:
     ax.plot(tRetorno_generado,dfQMaxVero[i], label="Gumbel", color="black", linewidth=0.6)
     ax.plot(dfQMaxICGumbel.index,dfQMaxICGumbel[i], label="IC límite superior", color="c", linewidth=0.6)
     ax.plot(listaExtremoX, listaExtremoY, color="purple", label="Q límite", linewidth=0.6)
-    ax.scatter(TMedidoEstaciones[i],QMedidoEstaciones[i], label="Q medidos", color="red")
-    ax.scatter(dfTemp.loc[i],maximosAnualesHisSinRaros[i].sort_values(ascending=False), label=complementoNombre, color="black")
+
+    # ✅ CAMBIO: recalcular posiciones de plotting para esta estación
+    y_vals = maximosAnualesHisSinRaros[i].sort_values(ascending=False)
+    n = len(y_vals)
+    posiciones = [(j - 0.44) / (n + 0.12) for j in range(1, n + 1)]  # Gringorten
+    dfTemp = pd.DataFrame(posiciones)
+
+    ax.scatter(dfTemp.iloc[:,0], y_vals, label=complementoNombre, color="black")
     ax.semilogx()
     ax.set_xlabel("$T_r (años)$", fontsize = 12)
     ax.set_ylabel('$Q (m^{3}/s)$', fontsize = 12)
@@ -474,3 +480,4 @@ for i in estacionQ_ID:
     rutaImagen = rutaSalida + "/Graficas/"
     plt_var.savefig(rutaImagen + nombre[0] + " " + nombreMes + " " + str(añoEvaluado) +" Gumbel Maximo Anual.png", dpi = 300)
     plt.close('all')
+print("¡Proceso terminado! \a")
