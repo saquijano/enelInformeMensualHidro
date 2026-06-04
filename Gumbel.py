@@ -1,32 +1,29 @@
 #####  CANALCLIMA ENEL PROJECT DATABASES
 
 #### Import libraries
+from dateutil.relativedelta import relativedelta
+from datetime import timedelta
+from datetime import datetime
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+import statistics as st
+import mysql.connector
+import pandas as pd
+import scipy as sp
+import numpy as np
+import calendar
 import pyodbc
 import time
-import pandas as pd
-import mysql.connector
-from datetime import datetime
-from datetime import timedelta
-import calendar
-import scipy.stats
-from dateutil.relativedelta import relativedelta
-import numpy as np
-from statistics import mode
-import statistics as st
-import os
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import seaborn as sns
-import scipy.stats as stats
-import scipy as sp
+import locale
 import math
 import os
-import locale
 
 #### Fechas de evaluación para extremo graficas
 TLimite = 3
-mesEvaluado = 3
+mesEvaluado = 4
 añoEvaluado = 2026
 MesEvaluacion = 'MaxAnual' #poner numero de mes evaluado o 'MaxAnual'
 locale.setlocale(locale.LC_ALL, 'es_ES')
@@ -55,7 +52,9 @@ if not os.path.exists(rutaSalida + "/" + str(mesEvaluado) + ' ' + calendar.month
     os.mkdir(rutaSalida + "/" + str(mesEvaluado) + ' ' + calendar.month_name[mesEvaluado])
     os.mkdir(rutaSalida + "/" + str(mesEvaluado) + ' ' + calendar.month_name[mesEvaluado] + "/Tablas")
     os.mkdir(rutaSalida + "/" + str(mesEvaluado) + ' ' + calendar.month_name[mesEvaluado] + "/Graficas")
-    # os.mkdir(rutaSalida + "/" + str(mesEvaluado) + ' ' + calendar.month_name[mesEvaluado] + "/GraficasDesde2024")
+    os.mkdir(rutaSalida + "/" + str(mesEvaluado) + ' ' + calendar.month_name[mesEvaluado] + "/Graficas/Error")
+    os.mkdir(rutaSalida + "/" + str(mesEvaluado) + ' ' + calendar.month_name[mesEvaluado] + "/Graficas/Gumbel")
+    os.mkdir(rutaSalida + "/" + str(mesEvaluado) + ' ' + calendar.month_name[mesEvaluado] + "/Graficas/Mes")
 else:
     pass
 
@@ -80,8 +79,8 @@ def textoSQL(idSensor, fechaIni, fechaFin):
 # funcion para conectarse con servidor y sacar datos con la consulta de la funcion "textoSQL"
 def sacarDatos(idSensor, fechaIni, fechaFin):
     # Carga de bases de datos desde SQL - Version actualizada (usuario y contraseña bien)
-    conexion = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server}; SERVER=aplicaciones.canalclima.com,1845; DATABASE=ENEL; UID=santiago.quijano; PWD=contra2026*2; TrustServerCertificate=yes;')
-     # conexion = pyodbc.connect('DRIVER={SQL Server}; SERVER=dbservcclima.cloudapp.net,1845; DATABASE=CCLIMATE; UID=santiago.quijano; PWD=contra2025*')
+    conexion = pyodbc.connect('DRIVER={ODBC Driver 18 for SQL Server}; SERVER=aplicaciones.canalclima.com,1845; DATABASE=ENEL; UID=santiago.quijano; PWD=contra2026*3; TrustServerCertificate=yes;')
+    # conexion = pyodbc.connect('DRIVER={SQL Server}; SERVER=dbservcclima.cloudapp.net,1845; DATABASE=CCLIMATE; UID=santiago.quijano; PWD=contra2025*')
     # Creacion de cursor
     cursor = conexion.cursor()
     # Ejecuta sentencias SQL en el cursor y guardo consulta de Base de datos enel
@@ -100,12 +99,12 @@ def sacarDatos(idSensor, fechaIni, fechaFin):
     conexion.close()
     return data
 
-
 # Extraer DataFrames desde sql
 dataMes_PNyQ = sacarDatos(["0230", "0601", "0240", "0241"], inicioMes, finMes)
 print("Se descargan datos del mes")
 start = time.time()
 dataDesde2024 = sacarDatos(["0230", "0601"], fechaSinMantenimiento2024, finMes)
+dataDesde2024 = dataDesde2024[dataDesde2024['ValidacionFinal'] != "F"].reset_index(drop=True)
 end = time.time()
 print("Se descargan datos desde 2024")
 # Se crea csv con la informacion de precipitación, nivel y cuadal del mes evaluado
@@ -125,78 +124,19 @@ codigosEstaciones = pd.read_csv("""TablasOrigenInfo/CodigoEstaciones.csv""",sep=
 # Es muy importante ajsutarlo cada mes porque puede cambiar para el ultimo año. Principalmente importante en
 cualesAnosQuitar = pd.read_csv("""TablasOrigenInfo/paraQuitarAños.csv""",sep=";")
 
-""" Para sacar datos de guavio.
-# sacar datos guavio
-estacionesGuavio = [26005, 26001, 26006, 26004, 27002, 27003]
-datosGuavio2024 = dataDesde2024[dataDesde2024["IdEstacion"].isin(estacionesGuavio)]
-datosGuavio2024["Fecha"] = datosGuavio2024["FechaHora"].dt.date
-datosBuenos = datosGuavio2024[datosGuavio2024["ValidacionFinal"].isin(["V","S"])]
-valoresDiarioGuavio = pd.pivot_table(datosBuenos, values='Valor', index=['IdEstacion', 'Fecha'],  columns=['IdSensor'], aggfunc="mean")
-diariosGuavio = valoresDiarioGuavio.reset_index()
-
-
-for i in datosBuenos["IdEstacion"].unique():
-    datosEstacion = datosBuenos[datosBuenos["IdEstacion"]==i]
-    nombre=(codigosEstaciones['NombreEstacion'][codigosEstaciones['IdEstacion']==i]).values.tolist()
-    for j in datosEstacion['IdSensor'].unique():
-        datosGraficar = datosEstacion[datosEstacion["IdSensor"]==j]
-        plt.figure(figsize = [8,6])
-        if j =="0601":
-            variable = "Caudal"
-            unidad = "$m^3/s$"
-        else:
-            variable = "Nivel"
-            unidad = "m"
-        ax = plt.axes()
-        plt.title(f'{nombre[0]} - {variable}', fontweight="bold")
-        ax.plot(datosGraficar["Fecha"],datosGraficar["Valor"], label=variable, color="b", linewidth=0.6)
-        ax.set_xlabel("Fecha", fontsize = 11)
-        ax.set_ylabel(f'{variable} ({unidad})', fontsize = 11)
-        ax.legend()
-        plt_var = ax.get_figure()
-        rutaImagenes = rutaSalida + "/GraficasDesde2024/"
-        plt_var.savefig(rutaImagenes+nombre[0] + " " + variable + ".png", dpi = 300)
-        plt.close()
-
-
-
-for i in diariosGuavio["IdEstacion"].unique():
-    datosEstacion = diariosGuavio[diariosGuavio["IdEstacion"]==i]
-    nombre=(codigosEstaciones['NombreEstacion'][codigosEstaciones['IdEstacion']==i]).values.tolist()
-    for j in ["0601","0230"]:
-        plt.figure(figsize = [8,6])
-        if j =="0601":
-            variable = "Caudal"
-            unidad = "$m^3/s$"
-        else:
-            variable = "Nivel"
-            unidad = "m"
-        ax = plt.axes()
-        plt.title(f'{nombre[0]} - {variable}  diario', fontweight="bold")
-        ax.plot(datosEstacion["Fecha"],datosEstacion[j], label=variable, color="b", linewidth=0.6)
-        ax.set_xlabel("Fecha", fontsize = 11)
-        ax.set_ylabel(f'{variable} ({unidad})', fontsize = 11)
-        ax.legend()
-        plt_var = ax.get_figure()
-        rutaImagenes = rutaSalida + "/GraficasDesde2024/"
-        plt_var.savefig(rutaImagenes+nombre[0] + " " +  variable + " diario.png", dpi = 300)
-        plt.close()
-
-datosGuavio2024[['FechaHora', 'IdEstacion', 'IdSensor', 'Valor', 'ValidacionFinal']].to_excel(rutaImagenes +'/DatosGuavio.xlsx',index=False)
-diariosGuavio.to_excel(rutaImagenes +'/DatosGuavioDiario.xlsx', index=False)
-"""
-
 # Unir datos
 historicos = pd.concat([bogotacsv, guaviocsv, quimbocsv, data2023_2024ConMantenimiento])
 historicosSinDuplicados = historicos.drop_duplicates(subset=["FechaHora","IdEstacion","IdSensor"])
 # no incluyo datos historicos posteriores a 2023-03-01 porque los saque de base de datos
 historicosSinDuplicados = historicosSinDuplicados[historicosSinDuplicados['FechaHora'] < fechaSinMantenimiento2024.strftime('%Y-%m-%d')]
-historicosBuenos = historicosSinDuplicados[(historicosSinDuplicados['ValidacionFinal'] == "V")]
+historicosBuenos = historicosSinDuplicados[(historicosSinDuplicados['ValidacionFinal'] != "F")].reset_index(drop=True)
 
 datoscompletos = pd.concat([historicosBuenos, dataDesde2024])
+datoscompletos = datoscompletos.reset_index(drop=True)
 datoscompletos['Año'] = datoscompletos['FechaHora'].dt.year
 datoscompletos['Mes'] = datoscompletos['FechaHora'].dt.month
 datoscompletos = datoscompletos[['IdEstacion','IdSensor','FechaHora','Valor','IdMetodoAdquisicion','ValidacionFinal','Año','Mes']]
+completosErroneos = datoscompletos[(datoscompletos['ValidacionFinal'] == "E")].reset_index(drop=True)
 # filtro para que solo trabaje con datos de caudal
 datosCaudal = datoscompletos[datoscompletos['IdSensor'] == '0601'].reset_index()
 datosCaudal = datosCaudal.drop(['index'],axis=1)
@@ -383,7 +323,7 @@ for i in estacionQ_ID:
         dfTemp=pd.DataFrame(Temp, index=[IdEstacion])
     else:
         temporal = pd.DataFrame(Temp, index=[IdEstacion])
-        dfTemp = pd.concat([dfTemp, temporal], ignore_index=True)
+        dfTemp = pd.concat([dfTemp, temporal]) # no puede quedar como ignore index
 
 #### limites limite
 TQLimExtremo=pd.DataFrame(index=estacionQ_ID,columns=["TExtremoICSup"])
@@ -451,12 +391,15 @@ else:
 
 ### Graficar todos juntos
 print("inicia creacion de graficas")
+
+i = estacionQ_ID[0]
 for i in estacionQ_ID:
     nombre=(codigosEstaciones['NombreEstacion'][codigosEstaciones['IdEstacion']==i]).values.tolist()
     plt.figure(figsize = [6.6, 4.8])
     listaExtremoX = [TQLimExtremo.loc[i].to_list()[0], TLimite, TLimite]
     listaExtremoY = [tabla421QInfIC[i], tabla421QInfIC[i], tabla421QSupIC[i]]
     ax = plt.axes()
+
     plt.suptitle(nombre[0] + " Q vs $T_r$ (evaluación " + nombreMes + ")", fontweight="bold")
     ax.set_title("Intervalo de confianza 95% - " + complementoNombre)
     ax.plot(dfQMinICGumbel.index,dfQMinICGumbel[i], label="IC límite inferior", color="b", linewidth=0.6)
@@ -471,6 +414,84 @@ for i in estacionQ_ID:
     ax.legend()
     ax.grid(True, which="both", linewidth=0.4)
     plt_var = ax.get_figure()
-    rutaImagen = rutaSalida + "/Graficas/"
+    rutaImagen = rutaSalida + "/Graficas/Gumbel"
     plt_var.savefig(rutaImagen + nombre[0] + " " + nombreMes + " " + str(añoEvaluado) +" Gumbel Maximo Anual.png", dpi = 300)
+    plt.close('all')
+
+
+### Crear graficas de valores erroneos
+finMes2 = finMes + relativedelta(days=-1)
+
+completosErroneosMes = completosErroneos[completosErroneos["FechaHora"]>=inicioMes].copy()
+completosErroneosMes.dropna(subset=["Valor"], inplace=True, ignore_index=True)
+
+datosAGraficar = datoscompletos[datoscompletos["IdEstacion"].isin(completosErroneosMes["IdEstacion"].unique())]
+datosMesAGraficar = datosAGraficar[datosAGraficar["FechaHora"]>=inicioMes].copy()
+datosMesAGraficar.dropna(subset=["Valor"], inplace=True, ignore_index=True)
+
+for idSen in datosMesAGraficar["IdEstacion"].unique():
+    datosErrGraf = datosMesAGraficar[datosMesAGraficar["IdEstacion"]==idSen]
+    nombre = (codigosEstaciones['NombreEstacion'][codigosEstaciones['IdEstacion'] == idSen]).values.tolist()
+    for varEr in datosErrGraf["IdSensor"].unique():
+        datosgrafica = datosErrGraf[datosErrGraf["IdSensor"]==varEr]
+        datos_E = datosgrafica[datosgrafica["ValidacionFinal"] == "E"]
+        datos_V = datosgrafica[datosgrafica["ValidacionFinal"] == "V"]
+        datos_S = datosgrafica[datosgrafica["ValidacionFinal"] == "S"]
+        if varEr == '0601':
+            nombreVar = "Caudal"
+            ylabel = '$Q (m^{3}/s)$'
+        else:
+            nombreVar = "Nivel"
+            ylabel = '$Nivel (m)$'
+
+        plt.figure(figsize=[8, 5])
+
+        ax = plt.axes()
+        plt.suptitle(f"Valores mensuales - {nombre[0]} {nombreMes} - {añoEvaluado}", fontweight="bold")
+
+        if len(datos_E)>0:
+            ax.scatter(datos_E['FechaHora'], datos_E['Valor'], label=f"{nombreVar} erroneos", color="#ED7D31", s=0.6)
+
+        if len(datos_V) > 0:
+            ax.scatter(datos_V['FechaHora'], datos_V['Valor'], label=f"{nombreVar} validos", color="#4472C4", s=0.6)
+
+        if len(datos_S) > 0:
+            ax.scatter(datos_S['FechaHora'], datos_S['Valor'], label=f"{nombreVar} sospechosos", color="#A5A5A5", s=0.6)
+
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=4))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m'))
+        ax.set_ylabel(ylabel, fontsize=12)
+        ax.set_xlim(inicioMes,finMes2)
+        ax.set_ylim(0, 1.1*max(datosgrafica['Valor']))
+        ax.legend(loc='lower left')#,bbox_to_anchor=(1.05, 1))
+        plt_var = ax.get_figure()
+        rutaImagen = rutaSalida + "/Graficas/Error"
+        plt_var.savefig(f'{rutaImagen}{nombre[0]} {nombreVar} valores erroneos.png',dpi=300)
+    plt.close('all')
+
+# para graficar mes con los limtes
+
+for idSens in datosMesCaudal["IdEstacion"].unique():
+    datosCaudalEstac = datosMesCaudal[datosMesCaudal["IdEstacion"]==idSens]
+    limites = tabla241[tabla241.index==idSens]
+    nombre = limites["Nombre Estacion"].iloc[0]
+
+    plt.figure(figsize=[11, 5])
+    ax = plt.axes()
+    plt.suptitle(f"Valores mensuales - {nombre} {nombreMes} - {añoEvaluado}")
+    ax.scatter(datosCaudalEstac['FechaHora'], datosCaudalEstac['Valor'], label="Caudal", color="#4472C4", s=0.6)
+    #
+    ax.axhline(y=limites["LimiteQICinf"].iloc[0], color="#A5A5A5", label="Limite Gumbel")
+    #
+    ax.axhline(y=limites["LimiteQUmbral"].iloc[0], color="#ED7D31", label="Limite seria parcial")
+    ax.xaxis.set_major_locator(mdates.DayLocator(interval=4))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d-%m'))
+    ax.set_ylabel(ylabel, fontsize=12)
+    ax.set_xlim(inicioMes,finMes2)
+    ax.set_ylim(0, 1.1*limites["LimiteQICinf"].iloc[0])
+    ax.legend()#loc='lower left')#,bbox_to_anchor=(1.05, 1))
+    plt_var = ax.get_figure()
+    rutaImagen = rutaSalida + "/Graficas/Mes/"
+    plt.tight_layout()
+    plt_var.savefig(f'{rutaImagen}{nombre} mensual.png',dpi=300)
     plt.close('all')
